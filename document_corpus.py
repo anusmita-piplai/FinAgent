@@ -171,3 +171,4 @@ def search_corpus(query: str, ticker: str = None, top_k: int = 4) -> dict:
         scored = [{**d, "relevance_score": 0.15} for d in fallback]
 
     return {"count": len(scored[:top_k]), "results": scored[:top_k]}
+
