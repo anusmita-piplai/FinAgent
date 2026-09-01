@@ -17,8 +17,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
-from market_data import fetch_market_data
-from document_corpus import search_corpus
+try:
+    from market_data import fetch_market_data
+except ImportError:
+    from market_data1 import fetch_market_data
+
+try:
+    from document_corpus import search_corpus
+except ImportError:
+    from document_corpus1 import search_corpus
 
 
 # ---------------------------------------------------------------------------
