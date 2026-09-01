@@ -89,12 +89,51 @@ section[data-testid="stSidebar"] {
 background: linear-gradient(180deg, #E2E8F0 0%, #F0F4F8 100%) !important;
 border-right: 1px solid rgba(148, 163, 184, 0.3);
 }
-section[data-testid="stSidebar"] * {
-color: #1E293B !important;
-}
 section[data-testid="stSidebar"] .stSelectbox label,
 section[data-testid="stSidebar"] .stTextInput label {
 color: #334155 !important;
+font-weight: 600 !important;
+}
+
+/* ===== DROPDOWN / SELECTBOX STYLING (HIGH LEGIBILITY) ===== */
+div[data-baseweb="select"] > div {
+background-color: #FFFFFF !important;
+color: #0F172A !important;
+border-radius: 8px !important;
+border: 1px solid rgba(148, 163, 184, 0.4) !important;
+}
+
+div[data-baseweb="select"] span, div[data-baseweb="select"] div {
+color: #0F172A !important;
+}
+
+/* Dropdown Menu Popover Container */
+div[data-baseweb="popover"], div[data-baseweb="menu"], ul[role="listbox"] {
+background-color: #FFFFFF !important;
+border: 1px solid rgba(148, 163, 184, 0.3) !important;
+border-radius: 10px !important;
+box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Individual Dropdown Options */
+ul[role="listbox"] li, div[data-baseweb="menu"] div, [role="option"], [data-baseweb="option"] {
+background-color: #FFFFFF !important;
+color: #0F172A !important;
+font-weight: 500 !important;
+font-size: 0.9rem !important;
+}
+
+/* Hover and Active State for Dropdown Options */
+ul[role="listbox"] li:hover, [role="option"]:hover, [data-baseweb="option"]:hover {
+background-color: #0EA5E9 !important;
+color: #FFFFFF !important;
+}
+
+/* Selected Item in Dropdown */
+[aria-selected="true"] {
+background-color: #E0F2FE !important;
+color: #0284C7 !important;
+font-weight: 700 !important;
 }
 
 /* Modern Frosted Glass Card Container */
