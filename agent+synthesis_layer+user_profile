@@ -1,0 +1,450 @@
+"""
+Three independent 'agents' for the multi-agent financial intelligence system.
+Each agent returns a common output contract:
+    {
+        "agent": str,
+        "label": str,
+        "confidence": float,   # 0.0 - 1.0
+        "reasoning": str
+    }
+This shared shape is what lets a synthesis layer combine outputs from
+agents that know nothing about each other.
+"""
+
+from datetime import datetime
+from typing import List, Dict, Any
+
+
+# ---------------------------------------------------------------------------
+# 1. MOMENTUM AGENT
+# ---------------------------------------------------------------------------
+def momentum_agent(prices: List[float], lookback: int = 10) -> Dict[str, Any]:
+    """
+    Checks whether price is trending up/down using recent data.
+    `prices` = list of recent closing prices, oldest -> newest.
+    """
+    if len(prices) < 2:
+        return {
+            "agent": "momentum",
+            "label": "insufficient_data",
+            "confidence": 0.0,
+            "reasoning": "Not enough price history to evaluate momentum.",
+        }
+
+    window = prices[-lookback:] if len(prices) >= lookback else prices
+    start, end = window[0], window[-1]
+    pct_change = (end - start) / start * 100
+
+    # Simple slope-consistency check: how many steps moved in the same
+    # direction as the overall trend (used to build confidence).
+    direction = 1 if pct_change > 0 else -1
+    consistent_steps = sum(
+        1
+        for i in range(1, len(window))
+        if (window[i] - window[i - 1]) * direction > 0
+    )
+    consistency_ratio = consistent_steps / (len(window) - 1) if len(window) > 1 else 0
+
+    if abs(pct_change) < 0.5:
+        label = "neutral"
+    elif pct_change > 0:
+        label = "bullish"
+    else:
+        label = "bearish"
+
+    # Confidence blends magnitude of move with how consistent the trend was
+    confidence = round(min(1.0, (abs(pct_change) / 10) * 0.5 + consistency_ratio * 0.5), 2)
+
+    reasoning = (
+        f"Price moved {pct_change:+.2f}% over the last {len(window)} data points "
+        f"({start:.2f} -> {end:.2f}), with {consistent_steps}/{len(window)-1} steps "
+        f"moving in the same direction (consistency={consistency_ratio:.0%})."
+    )
+
+    return {
+        "agent": "momentum",
+        "label": label,
+        "confidence": confidence,
+        "reasoning": reasoning,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 2. VOLUME AGENT
+# ---------------------------------------------------------------------------
+def volume_agent(volumes: List[float], spike_threshold: float = 2.0) -> Dict[str, Any]:
+    """
+    Flags unusual trading volume spikes relative to a rolling baseline.
+    `volumes` = list of recent volume figures, oldest -> newest.
+    `spike_threshold` = multiple of average volume that counts as a spike.
+    """
+    if len(volumes) < 3:
+        return {
+            "agent": "volume",
+            "label": "insufficient_data",
+            "confidence": 0.0,
+            "reasoning": "Not enough volume history to establish a baseline.",
+        }
+
+    *baseline, latest = volumes
+    avg_baseline = sum(baseline) / len(baseline)
+
+    if avg_baseline == 0:
+        ratio = 0
+    else:
+        ratio = latest / avg_baseline
+
+    if ratio >= spike_threshold:
+        label = "volume_spike"
+        confidence = round(min(1.0, (ratio - spike_threshold) / spike_threshold + 0.5), 2)
+    elif ratio <= 0.5:
+        label = "volume_drought"
+        confidence = round(min(1.0, (0.5 - ratio) + 0.4), 2)
+    else:
+        label = "normal"
+        confidence = round(1.0 - abs(ratio - 1.0), 2)
+
+    reasoning = (
+        f"Latest volume ({latest:,.0f}) is {ratio:.2f}x the {len(baseline)}-period "
+        f"average baseline ({avg_baseline:,.0f}). Spike threshold set at {spike_threshold}x."
+    )
+
+    return {
+        "agent": "volume",
+        "label": label,
+        "confidence": max(0.0, min(1.0, confidence)),
+        "reasoning": reasoning,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 3. SENTIMENT / NEWS AGENT
+# ---------------------------------------------------------------------------
+# Minimal rule-based lexicon — swap for an LLM call later without changing
+# the function's return contract.
+_POSITIVE_WORDS = {
+    "beat", "beats", "growth", "record", "upgrade", "upgraded", "strong",
+    "profit", "surge", "rally", "outperform", "expansion", "raised", "buy",
+}
+_NEGATIVE_WORDS = {
+    "miss", "missed", "downgrade", "downgraded", "weak", "loss", "lawsuit",
+    "probe", "investigation", "decline", "cut", "recall", "fraud", "sell",
+    "default", "delay",
+}
+
+
+def sentiment_agent(snippets: List[Dict[str, str]]) -> Dict[str, Any]:
+    """
+    Rule-based sentiment score from document snippets (e.g. filings/news).
+    `snippets` = list of {"source": str, "text": str} retrieved from the
+    RAG layer, so attribution can be surfaced alongside the score.
+    """
+    if not snippets:
+        return {
+            "agent": "sentiment",
+            "label": "insufficient_data",
+            "confidence": 0.0,
+            "reasoning": "No document snippets retrieved to score.",
+            "sources": [],
+        }
+
+    pos_hits, neg_hits = 0, 0
+    matched_sources = []
+
+    for snip in snippets:
+        text_lower = snip.get("text", "").lower()
+        words = set(text_lower.replace(",", " ").replace(".", " ").split())
+        p = len(words & _POSITIVE_WORDS)
+        n = len(words & _NEGATIVE_WORDS)
+        pos_hits += p
+        neg_hits += n
+        if p or n:
+            matched_sources.append(snip.get("source", "unknown"))
+
+    total_hits = pos_hits + neg_hits
+    if total_hits == 0:
+        label = "neutral"
+        confidence = 0.3  # low confidence — no sentiment-bearing words found
+    else:
+        score = (pos_hits - neg_hits) / total_hits
+        if score > 0.15:
+            label = "positive"
+        elif score < -0.15:
+            label = "negative"
+        else:
+            label = "neutral"
+        confidence = round(min(1.0, 0.4 + abs(score) * 0.6), 2)
+
+    reasoning = (
+        f"Scanned {len(snippets)} document snippet(s); found {pos_hits} positive "
+        f"and {neg_hits} negative sentiment markers "
+        f"(sources: {', '.join(matched_sources) if matched_sources else 'none matched'})."
+    )
+
+    return {
+        "agent": "sentiment",
+        "label": label,
+        "confidence": confidence,
+        "reasoning": reasoning,
+        "sources": matched_sources,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 4. SYNTHESIS LAYER
+# ---------------------------------------------------------------------------
+# Maps each agent's label to a directional score: +1 = bullish/supportive,
+# -1 = bearish/negative, 0 = neutral / not directionally meaningful.
+_LABEL_DIRECTION = {
+    "bullish": 1, "bearish": -1, "neutral": 0,
+    "volume_spike": 1, "volume_drought": -0.5, "normal": 0,
+    "positive": 1, "negative": -1,
+    "insufficient_data": 0,
+}
+
+# Base importance of each agent in the final call. Tune these, or better —
+# make them a function of the user's risk profile (step 6).
+_DEFAULT_WEIGHTS = {"momentum": 0.4, "volume": 0.25, "sentiment": 0.35}
+
+
+def synthesize(agent_outputs: List[Dict[str, Any]],
+                weights: Dict[str, float] = None) -> Dict[str, Any]:
+    """
+    Combines outputs from momentum_agent, volume_agent, sentiment_agent
+    into one final recommendation. Handles missing/degraded agents
+    gracefully instead of failing.
+
+    Returns a dict with: recommendation, confidence, weighted_score,
+    top_influencer, contributing_agents, reasoning (with per-agent citations).
+    """
+    weights = weights or _DEFAULT_WEIGHTS
+
+    usable = [a for a in agent_outputs if a.get("label") != "insufficient_data"]
+    degraded = [a for a in agent_outputs if a.get("label") == "insufficient_data"]
+
+    if not usable:
+        return {
+            "recommendation": "HOLD / NO SIGNAL",
+            "confidence": 0.0,
+            "weighted_score": 0.0,
+            "top_influencer": None,
+            "contributing_agents": [],
+            "reasoning": (
+                "All agents reported insufficient data "
+                f"({', '.join(a['agent'] for a in degraded)}). "
+                "No recommendation can be safely produced."
+            ),
+        }
+
+    # Renormalize weights over only the agents that actually produced a
+    # usable signal, so a missing/degraded agent doesn't silently distort
+    # the outcome (this is the "graceful degraded-data handling" the PS
+    # asks for).
+    active_weight_sum = sum(weights.get(a["agent"], 0) for a in usable)
+    contributions = []
+    weighted_score = 0.0
+
+    for a in usable:
+        w_raw = weights.get(a["agent"], 0)
+        w_norm = w_raw / active_weight_sum if active_weight_sum else 0
+        direction = _LABEL_DIRECTION.get(a["label"], 0)
+        contribution = w_norm * direction * a["confidence"]
+        weighted_score += contribution
+        contributions.append({
+            "agent": a["agent"],
+            "label": a["label"],
+            "confidence": a["confidence"],
+            "weight": round(w_norm, 3),
+            "contribution": round(contribution, 3),
+        })
+
+    # Sort so the most influential agent (by absolute contribution) is first
+    contributions.sort(key=lambda c: abs(c["contribution"]), reverse=True)
+    top_influencer = contributions[0]
+
+    if weighted_score > 0.15:
+        recommendation = "BUY / ACCUMULATE"
+    elif weighted_score < -0.15:
+        recommendation = "SELL / REDUCE"
+    else:
+        recommendation = "HOLD"
+
+    # Overall confidence = magnitude of the score, damped if any agent
+    # was degraded (we know less than a full picture).
+    confidence = round(min(1.0, abs(weighted_score)) * (0.85 if degraded else 1.0), 2)
+
+    citation_str = "; ".join(
+        f"{c['agent']} ({c['label']}, conf={c['confidence']}, weight={c['weight']})"
+        for c in contributions
+    )
+    reasoning = (
+        f"Weighted score = {weighted_score:+.3f}, driven most by the "
+        f"{top_influencer['agent']} agent (contribution={top_influencer['contribution']:+.3f}). "
+        f"Full breakdown: {citation_str}."
+    )
+    if degraded:
+        reasoning += (
+            f" Note: {', '.join(a['agent'] for a in degraded)} agent(s) had "
+            "insufficient data and were excluded from scoring."
+        )
+
+    return {
+        "recommendation": recommendation,
+        "confidence": confidence,
+        "weighted_score": round(weighted_score, 3),
+        "top_influencer": top_influencer["agent"],
+        "contributing_agents": contributions,
+        "reasoning": reasoning,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 5. USER PROFILING
+# ---------------------------------------------------------------------------
+# Each profile carries:
+#   - agent_weights: how much this user's recommendation should lean on
+#     each agent (conservative users care less about volatile volume spikes,
+#     more about sentiment/fundamentals)
+#   - buy_threshold / sell_threshold: how strong the weighted_score must be
+#     before this user is shown a directional call instead of HOLD
+#   - confidence_floor: minimum synthesis confidence required to act on a
+#     signal at all — below this, the profile downgrades to HOLD regardless
+#     of direction (this is the "risk override" behavior)
+USER_PROFILES = {
+    "conservative": {
+        "label": "Conservative",
+        "agent_weights": {"momentum": 0.25, "volume": 0.15, "sentiment": 0.60},
+        "buy_threshold": 0.45,
+        "sell_threshold": -0.30,
+        "confidence_floor": 0.70,
+    },
+    "moderate": {
+        "label": "Moderate",
+        "agent_weights": {"momentum": 0.40, "volume": 0.25, "sentiment": 0.35},
+        "buy_threshold": 0.15,
+        "sell_threshold": -0.15,
+        "confidence_floor": 0.40,
+    },
+    "aggressive": {
+        "label": "Aggressive",
+        "agent_weights": {"momentum": 0.55, "volume": 0.35, "sentiment": 0.10},
+        "buy_threshold": 0.08,
+        "sell_threshold": -0.08,
+        "confidence_floor": 0.15,
+    },
+}
+
+
+def apply_profile(agent_outputs: List[Dict[str, Any]], profile_key: str) -> Dict[str, Any]:
+    """
+    Runs synthesis using a specific user profile's agent weights, then
+    applies that profile's risk thresholds on top. This is what makes two
+    users see different recommendations from *identical* market inputs.
+    """
+    profile = USER_PROFILES.get(profile_key)
+    if profile is None:
+        raise ValueError(f"Unknown profile '{profile_key}'. Options: {list(USER_PROFILES)}")
+
+    base = synthesize(agent_outputs, weights=profile["agent_weights"])
+    score = base["weighted_score"]
+    confidence = base["confidence"]
+
+    # Start from the profile's own thresholds
+    if score >= profile["buy_threshold"]:
+        recommendation = "BUY / ACCUMULATE"
+    elif score <= profile["sell_threshold"]:
+        recommendation = "SELL / REDUCE"
+    else:
+        recommendation = "HOLD"
+
+    # Risk override: even a directional call gets downgraded to HOLD if
+    # this user's confidence bar isn't met. This is the behavior the PS
+    # describes — e.g. Aggressive sees BUY, Conservative sees the same
+    # signal but downgrades it to HOLD.
+    downgraded = False
+    if recommendation != "HOLD" and confidence < profile["confidence_floor"]:
+        downgraded = True
+        original_call = recommendation
+        recommendation = "HOLD"
+
+    reasoning = (
+        f"[{profile['label']} profile] weighted_score={score:+.3f} against "
+        f"buy>={profile['buy_threshold']} / sell<={profile['sell_threshold']}, "
+        f"confidence={confidence} vs required floor={profile['confidence_floor']}. "
+    )
+    if downgraded:
+        reasoning += (
+            f"Signal direction was {original_call}, but downgraded to HOLD because "
+            f"confidence ({confidence}) fell below this profile's risk floor "
+            f"({profile['confidence_floor']})."
+        )
+    else:
+        reasoning += base["reasoning"]
+
+    return {
+        "profile": profile["label"],
+        "recommendation": recommendation,
+        "confidence": confidence,
+        "weighted_score": score,
+        "downgraded_from_signal": downgraded,
+        "top_influencer": base["top_influencer"],
+        "contributing_agents": base["contributing_agents"],
+        "reasoning": reasoning,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Demo / smoke test
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    sample_prices = [100, 101, 102.5, 103, 104.2, 105, 104.8, 106, 107.5, 109]
+    sample_volumes = [120000, 130000, 125000, 140000, 128000, 300000]
+    sample_docs = [
+        {"source": "Q1_earnings_call.txt", "text": "Revenue growth beat estimates, strong outlook for next quarter."},
+        {"source": "SEBI_filing_2026.pdf", "text": "Company disclosed an ongoing investigation into related party transactions."},
+    ]
+
+    results = [
+        momentum_agent(sample_prices),
+        volume_agent(sample_volumes),
+        sentiment_agent(sample_docs),
+    ]
+
+    print(f"--- Agent outputs @ {datetime.now().isoformat(timespec='seconds')} ---")
+    for r in results:
+        print(r)
+
+    print("\n--- Synthesized recommendation (default weights) ---")
+    final = synthesize(results)
+    print(final)
+
+    print("\n--- Per-profile recommendations (same market data) ---")
+    for profile_key in USER_PROFILES:
+        out = apply_profile(results, profile_key)
+        print(f"\n{out['profile']}: {out['recommendation']} "
+              f"(score={out['weighted_score']:+.3f}, conf={out['confidence']}, "
+              f"downgraded={out['downgraded_from_signal']})")
+        print(f"  {out['reasoning']}")
+
+    # --- Second scenario: weak/mixed signal, chosen specifically to show
+    # the profiles diverge on IDENTICAL inputs (PS requirement) ---
+    print("\n\n=== Scenario 2: marginal/mixed signal (profiles should diverge) ===")
+    mixed_prices = [100, 100.4, 100.1, 100.6, 100.3, 100.8]      # weak uptrend
+    mixed_volumes = [120000, 118000, 122000, 119000, 121000, 205000]  # mild spike
+    mixed_docs = [
+        {"source": "news_wire.txt", "text": "Analysts see modest growth but flag delay risk."},
+    ]
+    mixed_results = [
+        momentum_agent(mixed_prices),
+        volume_agent(mixed_volumes),
+        sentiment_agent(mixed_docs),
+    ]
+    for r in mixed_results:
+        print(r)
+
+    print()
+    for profile_key in USER_PROFILES:
+        out = apply_profile(mixed_results, profile_key)
+        print(f"{out['profile']}: {out['recommendation']} "
+              f"(score={out['weighted_score']:+.3f}, conf={out['confidence']}, "
+              f"downgraded={out['downgraded_from_signal']})")
