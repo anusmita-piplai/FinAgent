@@ -13,18 +13,37 @@ import time
 from datetime import datetime, timezone
 import random
 
-# Import local backend modules
-from multi_agent_system import (
-    get_system_pipeline,
-    DEFAULT_PROFILES,
-    UserProfile,
-    SignalClassifierAgent,
-    FundamentalRagAgent,
-    RiskProfilerAgent,
-    SynthesisAgent
-)
-from document_corpus import search_corpus, DEFAULT_DOCUMENTS, get_corpus_index
-from market_data import fetch_market_data
+# Import local backend modules (handles both module name variations)
+try:
+    from multi_agent_system import (
+        get_system_pipeline,
+        DEFAULT_PROFILES,
+        UserProfile,
+        SignalClassifierAgent,
+        FundamentalRagAgent,
+        RiskProfilerAgent,
+        SynthesisAgent
+    )
+except ImportError:
+    from multi_agent_system1 import (
+        get_system_pipeline,
+        DEFAULT_PROFILES,
+        UserProfile,
+        SignalClassifierAgent,
+        FundamentalRagAgent,
+        RiskProfilerAgent,
+        SynthesisAgent
+    )
+
+try:
+    from document_corpus import search_corpus, DEFAULT_DOCUMENTS, get_corpus_index
+except ImportError:
+    from document_corpus1 import search_corpus, DEFAULT_DOCUMENTS, get_corpus_index
+
+try:
+    from market_data import fetch_market_data
+except ImportError:
+    from market_data1 import fetch_market_data
 
 # Page configuration
 st.set_page_config(
@@ -34,7 +53,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom High-End Modern Styling (Glassmorphism & Sleek Dark Mode)
+# Custom High-End Modern Styling (Light Robotic / Tech Theme)
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -47,26 +66,53 @@ code, pre, .mono-font {
 font-family: 'JetBrains Mono', monospace !important;
 }
 
-/* Main Container & Gradient Background */
+/* ===== LIGHT ROBOTIC BACKGROUND ===== */
 .stApp {
-background: radial-gradient(circle at 10% 20%, rgba(15, 23, 42, 1) 0%, rgba(8, 14, 26, 1) 90.2%);
-color: #F8FAFC;
+background:
+  /* Circuit-board grid lines */
+  linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+  /* Subtle node dots at intersections */
+  radial-gradient(circle, rgba(56, 189, 248, 0.06) 1px, transparent 1px),
+  /* Soft gradient base */
+  linear-gradient(160deg, #F0F4F8 0%, #E2E8F0 30%, #EFF6FF 60%, #F8FAFC 100%);
+background-size:
+  40px 40px,
+  40px 40px,
+  40px 40px,
+  100% 100%;
+color: #1E293B;
 }
 
-/* Modern Card Container */
+/* Sidebar styling for light theme */
+section[data-testid="stSidebar"] {
+background: linear-gradient(180deg, #E2E8F0 0%, #F0F4F8 100%) !important;
+border-right: 1px solid rgba(148, 163, 184, 0.3);
+}
+section[data-testid="stSidebar"] * {
+color: #1E293B !important;
+}
+section[data-testid="stSidebar"] .stSelectbox label,
+section[data-testid="stSidebar"] .stTextInput label {
+color: #334155 !important;
+}
+
+/* Modern Frosted Glass Card Container */
 .agent-card {
-background: rgba(30, 41, 59, 0.7);
-backdrop-filter: blur(12px);
-border: 1px solid rgba(148, 163, 184, 0.15);
+background: rgba(255, 255, 255, 0.72);
+backdrop-filter: blur(16px);
+-webkit-backdrop-filter: blur(16px);
+border: 1px solid rgba(148, 163, 184, 0.25);
 border-radius: 16px;
 padding: 20px;
 margin-bottom: 16px;
-box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
-transition: transform 0.2s ease, border-color 0.2s ease;
+box-shadow: 0 4px 20px -4px rgba(100, 116, 139, 0.12), 0 2px 8px -2px rgba(100, 116, 139, 0.08);
+transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .agent-card:hover {
-border-color: rgba(56, 189, 248, 0.4);
+border-color: rgba(14, 165, 233, 0.45);
 transform: translateY(-2px);
+box-shadow: 0 8px 30px -6px rgba(14, 165, 233, 0.15), 0 4px 12px -4px rgba(100, 116, 139, 0.1);
 }
 
 /* Top Ticker Ribbon */
@@ -75,26 +121,29 @@ display: flex;
 gap: 14px;
 overflow-x: auto;
 padding: 10px 14px;
-background: rgba(15, 23, 42, 0.85);
+background: rgba(255, 255, 255, 0.8);
+backdrop-filter: blur(12px);
 border-radius: 12px;
-border: 1px solid rgba(51, 65, 85, 0.7);
+border: 1px solid rgba(148, 163, 184, 0.2);
 margin-bottom: 20px;
+box-shadow: 0 2px 12px -3px rgba(100, 116, 139, 0.1);
 }
 .ticker-chip {
 display: inline-flex;
 align-items: center;
 gap: 8px;
 padding: 6px 14px;
-background: rgba(30, 41, 59, 0.8);
+background: rgba(241, 245, 249, 0.9);
 border-radius: 8px;
 font-size: 0.85rem;
 font-weight: 600;
 white-space: nowrap;
-border: 1px solid rgba(148, 163, 184, 0.12);
+border: 1px solid rgba(148, 163, 184, 0.15);
+color: #334155;
 }
 .badge-bullish {
-background: rgba(16, 185, 129, 0.15);
-color: #10B981;
+background: rgba(16, 185, 129, 0.12);
+color: #059669;
 border: 1px solid rgba(16, 185, 129, 0.3);
 padding: 2px 8px;
 border-radius: 6px;
@@ -102,8 +151,8 @@ font-size: 0.75rem;
 font-weight: 700;
 }
 .badge-bearish {
-background: rgba(244, 63, 94, 0.15);
-color: #F43F5E;
+background: rgba(244, 63, 94, 0.1);
+color: #E11D48;
 border: 1px solid rgba(244, 63, 94, 0.3);
 padding: 2px 8px;
 border-radius: 6px;
@@ -111,8 +160,8 @@ font-size: 0.75rem;
 font-weight: 700;
 }
 .badge-neutral {
-background: rgba(245, 158, 11, 0.15);
-color: #F59E0B;
+background: rgba(245, 158, 11, 0.1);
+color: #D97706;
 border: 1px solid rgba(245, 158, 11, 0.3);
 padding: 2px 8px;
 border-radius: 6px;
@@ -122,12 +171,13 @@ font-weight: 700;
 
 /* Hero Banner */
 .hero-banner {
-background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
-border: 1px solid rgba(56, 189, 248, 0.3);
+background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(241, 245, 249, 0.9) 100%);
+backdrop-filter: blur(14px);
+border: 1px solid rgba(14, 165, 233, 0.25);
 border-radius: 18px;
 padding: 24px;
 margin-bottom: 24px;
-box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.5);
+box-shadow: 0 8px 30px -8px rgba(14, 165, 233, 0.1), 0 4px 12px -4px rgba(100, 116, 139, 0.08);
 }
 
 /* Citation Tag */
@@ -135,9 +185,9 @@ box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.5);
 display: inline-block;
 font-family: 'JetBrains Mono', monospace;
 font-size: 0.75rem;
-color: #38BDF8;
-background: rgba(56, 189, 248, 0.1);
-border: 1px solid rgba(56, 189, 248, 0.25);
+color: #0284C7;
+background: rgba(14, 165, 233, 0.08);
+border: 1px solid rgba(14, 165, 233, 0.2);
 padding: 3px 8px;
 border-radius: 6px;
 margin-top: 6px;
@@ -145,7 +195,7 @@ margin-top: 6px;
 
 /* Timeline Step */
 .trace-item {
-border-left: 2px solid #38BDF8;
+border-left: 2px solid #0EA5E9;
 padding-left: 18px;
 margin-bottom: 16px;
 position: relative;
@@ -157,16 +207,16 @@ left: -6px;
 top: 2px;
 width: 10px;
 height: 10px;
-background: #38BDF8;
+background: #0EA5E9;
 border-radius: 50%;
-box-shadow: 0 0 8px #38BDF8;
+box-shadow: 0 0 8px rgba(14, 165, 233, 0.5);
 }
 
 /* Conflict Warning */
 .conflict-alert {
-background: rgba(239, 68, 68, 0.15);
-border: 1px solid rgba(239, 68, 68, 0.4);
-color: #FCA5A5;
+background: rgba(239, 68, 68, 0.08);
+border: 1px solid rgba(239, 68, 68, 0.3);
+color: #B91C1C;
 padding: 14px 18px;
 border-radius: 12px;
 margin-bottom: 18px;
@@ -176,18 +226,27 @@ font-weight: 500;
 /* Tab aesthetics */
 .stTabs [data-baseweb="tab-list"] {
 gap: 8px;
-background-color: rgba(15, 23, 42, 0.6);
+background-color: rgba(241, 245, 249, 0.8);
 padding: 6px;
 border-radius: 12px;
+border: 1px solid rgba(148, 163, 184, 0.15);
 }
 .stTabs [data-baseweb="tab"] {
 border-radius: 8px;
 padding: 8px 16px;
-color: #94A3B8;
+color: #64748B;
 font-weight: 600;
 }
 .stTabs [aria-selected="true"] {
-background-color: #38BDF8 !important;
+background-color: #0EA5E9 !important;
+color: #FFFFFF !important;
+}
+
+/* Override Streamlit default dark text areas */
+.stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span {
+color: #1E293B;
+}
+h1, h2, h3, h4, h5, h6 {
 color: #0F172A !important;
 }
 </style>
@@ -209,7 +268,7 @@ def render_top_ticker_bar():
     html = '<div class="ticker-bar">'
     for t in tickers:
         badge_cls = "badge-bullish" if t["bull"] else "badge-bearish"
-        html += f'<div class="ticker-chip"><span style="color: #94A3B8;">{t["name"]}</span><span style="color: #FFFFFF; font-weight: 700;">{t["price"]}</span><span class="{badge_cls}">{t["delta"]}</span></div>' 
+        html += f'<div class="ticker-chip"><span style="color: #64748B;">{t["name"]}</span><span style="color: #0F172A; font-weight: 700;">{t["price"]}</span><span class="{badge_cls}">{t["delta"]}</span></div>' 
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
 
@@ -257,9 +316,9 @@ def generate_chart_data(ticker: str, days: int = 45):
 # --- SIDEBAR CONFIGURATION ---
 st.sidebar.markdown("""
 <div style="text-align: center; padding-bottom: 12px;">
-<h2 style="margin-bottom: 2px; color: #38BDF8; font-weight: 800;">⚡ FINAGENT</h2>
-<p style="color: #94A3B8; font-size: 0.85rem; margin-top: 0;">Multi-Agent Financial Intelligence System</p>
-<div style="background: rgba(56, 189, 248, 0.15); color: #38BDF8; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; display: inline-block; font-weight: 600;">
+<h2 style="margin-bottom: 2px; color: #0284C7; font-weight: 800;">⚡ FINAGENT</h2>
+<p style="color: #64748B; font-size: 0.85rem; margin-top: 0;">Multi-Agent Financial Intelligence System</p>
+<div style="background: rgba(14, 165, 233, 0.12); color: #0284C7; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; display: inline-block; font-weight: 600;">
 Hackverse 2026 • PS-01
 </div>
 </div>
@@ -322,7 +381,7 @@ force_agent_conflict = st.sidebar.toggle(
 run_btn = st.sidebar.button("🚀 Re-run Multi-Agent Pipeline", use_container_width=True, type="primary")
 
 st.sidebar.markdown("""
-<div style="font-size: 0.75rem; color: #64748B; margin-top: 30px; line-height: 1.4;">
+<div style="font-size: 0.75rem; color: #475569; margin-top: 30px; line-height: 1.4;">
 <strong>PS-01 Compliance:</strong><br>
 ✓ 3+ Parallel Specialized Agents<br>
 ✓ RAG Grounded in SEBI Filings<br>
@@ -360,15 +419,15 @@ col_head1, col_head2 = st.columns([3, 1])
 with col_head1:
     st.markdown(f"""
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-    <h1 style="margin: 0; font-size: 2.2rem; font-weight: 800; color: #F8FAFC;">
+    <h1 style="margin: 0; font-size: 2.2rem; font-weight: 800; color: #0F172A;">
     {selected_ticker}
     </h1>
-    <span style="background: rgba(56, 189, 248, 0.2); color: #38BDF8; padding: 4px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(56, 189, 248, 0.4);">
+    <span style="background: rgba(14, 165, 233, 0.12); color: #0284C7; padding: 4px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; border: 1px solid rgba(14, 165, 233, 0.3);">
     NSE EQUITIES FEED
     </span>
     {f'<span class="badge-neutral" style="font-size: 0.8rem;">⚡ DEGRADED RESILIENCE MODE</span>' if simulate_degraded_mode else ''}
     </div>
-    <p style="color: #94A3B8; margin-top: 0; font-size: 1.05rem;">
+    <p style="color: #64748B; margin-top: 0; font-size: 1.05rem;">
     Autonomous Multi-Perspective Intelligence grounded in SEBI Disclosures & Behavioral Profiling
     </p>
     """, unsafe_allow_html=True)
@@ -379,10 +438,10 @@ with col_head2:
     vol_val = market_info.get("volume_change_pct", 0.0)
 
     st.markdown(f"""
-    <div style="background: rgba(30, 41, 59, 0.6); padding: 14px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.15); text-align: right;">
-    <div style="font-size: 0.8rem; color: #94A3B8; font-weight: 600;">LATEST MARKET PRICE</div>
-    <div style="font-size: 1.6rem; font-weight: 800; color: #FFFFFF;">₹{price_val:,.2f}</div>
-    <div style="font-size: 0.85rem; font-weight: 700; color: {'#10B981' if chg_val >= 0 else '#F43F5E'};">
+    <div style="background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(12px); padding: 14px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.25); text-align: right;">
+    <div style="font-size: 0.8rem; color: #64748B; font-weight: 600;">LATEST MARKET PRICE</div>
+    <div style="font-size: 1.6rem; font-weight: 800; color: #0F172A;">₹{price_val:,.2f}</div>
+    <div style="font-size: 0.85rem; font-weight: 700; color: {'#059669' if chg_val >= 0 else '#E11D48'};">
     {chg_val:+.2f}% 5D Delta | Vol: {vol_val:+.1f}%
     </div>
     </div>
@@ -433,22 +492,22 @@ with tab_hub:
     <span style="background: {badge_bg}; color: {border_color}; border: 1px solid {border_color}; padding: 6px 16px; border-radius: 8px; font-weight: 800; font-size: 1.1rem; letter-spacing: 0.5px;">
     {action_text}
     </span>
-    <span style="margin-left: 12px; color: #94A3B8; font-size: 0.95rem;">
-    Target Persona: <strong style="color: #F8FAFC;">{active_user_profile.name}</strong>
+    <span style="margin-left: 12px; color: #64748B; font-size: 0.95rem;">
+    Target Persona: <strong style="color: #0F172A;">{active_user_profile.name}</strong>
     </span>
     </div>
     <div style="display: flex; align-items: center; gap: 20px;">
     <div style="text-align: right;">
-    <div style="font-size: 0.75rem; color: #94A3B8; font-weight: 600;">CONSENSUS CONFIDENCE</div>
-    <div style="font-size: 1.5rem; font-weight: 800; color: #38BDF8;">{overall_conf}%</div>
+    <div style="font-size: 0.75rem; color: #64748B; font-weight: 600;">CONSENSUS CONFIDENCE</div>
+    <div style="font-size: 1.5rem; font-weight: 800; color: #0284C7;">{overall_conf}%</div>
     </div>
     <div style="text-align: right; border-left: 1px solid rgba(148, 163, 184, 0.2); padding-left: 16px;">
-    <div style="font-size: 0.75rem; color: #94A3B8; font-weight: 600;">SYSTEM PIPELINE LATENCY</div>
-    <div style="font-size: 1.5rem; font-weight: 800; color: #10B981;">{synth_res.get("execution_latency_ms", 0)} ms</div>
+    <div style="font-size: 0.75rem; color: #64748B; font-weight: 600;">SYSTEM PIPELINE LATENCY</div>
+    <div style="font-size: 1.5rem; font-weight: 800; color: #059669;">{synth_res.get("execution_latency_ms", 0)} ms</div>
     </div>
     </div>
     </div>
-    <div style="margin-top: 16px; font-size: 1.05rem; color: #E2E8F0; line-height: 1.5;">
+    <div style="margin-top: 16px; font-size: 1.05rem; color: #334155; line-height: 1.5;">
     {verdict_summary}
     </div>
     </div>
@@ -465,23 +524,23 @@ with tab_hub:
         st.markdown(f"""
         <div class="agent-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div style="font-weight: 700; color: #38BDF8; font-size: 1.05rem;">📈 Agent 1: Signal Screener</div>
-        <span style="font-size: 0.75rem; color: #94A3B8;">{tech_res.get('execution_latency_ms')} ms</span>
+        <div style="font-weight: 700; color: #0284C7; font-size: 1.05rem;">📈 Agent 1: Signal Screener</div>
+        <span style="font-size: 0.75rem; color: #64748B;">{tech_res.get('execution_latency_ms')} ms</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
         <span style="font-weight: 700; font-size: 1.1rem; color: {t_color};">{tech_sig}</span>
         <span class="badge-neutral" style="font-size: 0.8rem;">{tech_res.get('confidence_pct')}% Conf</span>
         </div>
-        <div style="font-size: 0.85rem; color: #CBD5E1; margin-bottom: 10px;">
+        <div style="font-size: 0.85rem; color: #475569; margin-bottom: 10px;">
         <strong>RSI-14:</strong> <code>{tech_res.get('metrics', {}).get('rsi_14')}</code> |
         <strong>Trend:</strong> <code>{tech_res.get('metrics', {}).get('ema_trend', 'Consolidating')[:20]}...</code>
         </div>
-        <div style="font-size: 0.85rem; color: #CBD5E1; margin-bottom: 12px;">
+        <div style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
         <strong>Volume Flag:</strong> <code>{tech_res.get('metrics', {}).get('volume_verdict', 'Normal')}</code>
         </div>
         <div style="border-top: 1px solid rgba(148, 163, 184, 0.15); padding-top: 10px;">
-        <div style="font-size: 0.75rem; color: #94A3B8; font-weight: 700; margin-bottom: 6px;">CITED MATHEMATICAL RATIONALE</div>
-        <ul style="margin: 0; padding-left: 16px; font-size: 0.78rem; color: #94A3B8; line-height: 1.4;">
+        <div style="font-size: 0.75rem; color: #64748B; font-weight: 700; margin-bottom: 6px;">CITED MATHEMATICAL RATIONALE</div>
+        <ul style="margin: 0; padding-left: 16px; font-size: 0.78rem; color: #64748B; line-height: 1.4;">
         {''.join(f'<li>{r}</li>' for r in tech_res.get('cited_reasoning', [])[:2])}
         </ul>
         </div>
@@ -495,24 +554,24 @@ with tab_hub:
         st.markdown(f"""
         <div class="agent-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div style="font-weight: 700; color: #A78BFA; font-size: 1.05rem;">📑 Agent 2: Fundamental RAG</div>
-        <span style="font-size: 0.75rem; color: #94A3B8;">{rag_res.get('execution_latency_ms')} ms</span>
+        <div style="font-weight: 700; color: #7C3AED; font-size: 1.05rem;">📑 Agent 2: Fundamental RAG</div>
+        <span style="font-size: 0.75rem; color: #64748B;">{rag_res.get('execution_latency_ms')} ms</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
         <span style="font-weight: 700; font-size: 0.95rem; color: {f_color};">{fund_st[:28]}</span>
         <span class="badge-neutral" style="font-size: 0.8rem;">{rag_res.get('confidence_pct')}% Conf</span>
         </div>
-        <div style="font-size: 0.85rem; color: #CBD5E1; margin-bottom: 10px;">
+        <div style="font-size: 0.85rem; color: #475569; margin-bottom: 10px;">
         <strong>Grounded Findings:</strong> <code>{rag_res.get('chunk_count', 0)} chunks retrieved</code>
         </div>
-        <div style="font-size: 0.82rem; color: #34D399; margin-bottom: 6px;">
+        <div style="font-size: 0.82rem; color: #059669; margin-bottom: 6px;">
         ✓ {rag_res.get('positive_catalysts', ['Stable corporate performance'])[0][:75]}...
         </div>
-        <div style="font-size: 0.82rem; color: #F87171; margin-bottom: 12px;">
+        <div style="font-size: 0.82rem; color: #E11D48; margin-bottom: 12px;">
         ⚠ {rag_res.get('key_risk_factors', ['Macro risks'])[0][:75]}...
         </div>
         <div style="border-top: 1px solid rgba(148, 163, 184, 0.15); padding-top: 10px;">
-        <div style="font-size: 0.75rem; color: #94A3B8; font-weight: 700; margin-bottom: 4px;">OFFICIAL CITATION</div>
+        <div style="font-size: 0.75rem; color: #64748B; font-weight: 700; margin-bottom: 4px;">OFFICIAL CITATION</div>
         <div class="citation-tag">{rag_res.get('retrieved_citations', ['SEBI Listing'])[0][:50]}...</div>
         </div>
         </div>
@@ -529,25 +588,25 @@ with tab_hub:
         st.markdown(f"""
         <div class="agent-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div style="font-weight: 700; color: #F59E0B; font-size: 1.05rem;">👤 Agent 3: Retail Risk Profiler</div>
-        <span style="font-size: 0.75rem; color: #94A3B8;">{risk_res.get('execution_latency_ms')} ms</span>
+        <div style="font-weight: 700; color: #D97706; font-size: 1.05rem;">👤 Agent 3: Retail Risk Profiler</div>
+        <span style="font-size: 0.75rem; color: #64748B;">{risk_res.get('execution_latency_ms')} ms</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-        <span style="font-weight: 700; font-size: 1.0rem; color: #F8FAFC;">{risk_res.get('user_risk_tier')} Tier</span>
+        <span style="font-weight: 700; font-size: 1.0rem; color: #0F172A;">{risk_res.get('user_risk_tier')} Tier</span>
         <span class="badge-bullish" style="font-size: 0.8rem;">{suit_score}/100 Fit</span>
         </div>
-        <div style="font-size: 0.85rem; color: #CBD5E1; margin-bottom: 6px;">
-        <strong>Recommended Sizing:</strong> <span style="color: #10B981; font-weight: 700;">₹{rec_cap:,.2f}</span> ({rec_shares} shares)
+        <div style="font-size: 0.85rem; color: #475569; margin-bottom: 6px;">
+        <strong>Recommended Sizing:</strong> <span style="color: #059669; font-weight: 700;">₹{rec_cap:,.2f}</span> ({rec_shares} shares)
         </div>
-        <div style="font-size: 0.85rem; color: #CBD5E1; margin-bottom: 6px;">
-        <strong>Stop-Loss Guard:</strong> <span style="color: #F43F5E; font-weight: 700;">₹{sl_price:,.2f}</span> (-{p_metrics.get('suggested_stop_loss_pct')}%)
+        <div style="font-size: 0.85rem; color: #475569; margin-bottom: 6px;">
+        <strong>Stop-Loss Guard:</strong> <span style="color: #E11D48; font-weight: 700;">₹{sl_price:,.2f}</span> (-{p_metrics.get('suggested_stop_loss_pct')}%)
         </div>
-        <div style="font-size: 0.85rem; color: #CBD5E1; margin-bottom: 12px;">
+        <div style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
         <strong>Current Concentration:</strong> <code>{p_metrics.get('current_weight_pct')}% / Max {p_metrics.get('max_allowable_weight_pct')}%</code>
         </div>
         <div style="border-top: 1px solid rgba(148, 163, 184, 0.15); padding-top: 10px;">
-        <div style="font-size: 0.75rem; color: #94A3B8; font-weight: 700; margin-bottom: 4px;">BEHAVIORAL SAFEGUARD</div>
-        <div style="font-size: 0.78rem; color: #FCD34D;">
+        <div style="font-size: 0.75rem; color: #64748B; font-weight: 700; margin-bottom: 4px;">BEHAVIORAL SAFEGUARD</div>
+        <div style="font-size: 0.78rem; color: #B45309;">
         {(risk_res.get('behavioral_alerts') or ['Allocation complies with portfolio risk limit.'])[0]}
         </div>
         </div>
@@ -557,17 +616,17 @@ with tab_hub:
     # 4. Transparent Explainable Reasoning Chain Trace
     st.markdown("---")
     st.subheader("🔍 Transparent Explainable Reasoning Chain Trace")
-    st.markdown("<p style='color: #94A3B8; font-size: 0.9rem;'>Auditable, step-by-step decision justification with chronological execution timestamps and explicit citations.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #64748B; font-size: 0.9rem;'>Auditable, step-by-step decision justification with chronological execution timestamps and explicit citations.</p>", unsafe_allow_html=True)
 
     trace_steps = synth_res.get("reasoning_trace", [])
     for step in trace_steps:
         st.markdown(f"""
         <div class="trace-item">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-        <strong style="color: #38BDF8; font-size: 0.95rem;">Step {step['step']}: {step['agent']}</strong>
-        <span class="mono-font" style="font-size: 0.75rem; color: #64748B;">{step['timestamp']}</span>
+        <strong style="color: #0284C7; font-size: 0.95rem;">Step {step['step']}: {step['agent']}</strong>
+        <span class="mono-font" style="font-size: 0.75rem; color: #94A3B8;">{step['timestamp']}</span>
         </div>
-        <div style="color: #E2E8F0; font-size: 0.9rem; margin-bottom: 6px;">
+        <div style="color: #334155; font-size: 0.9rem; margin-bottom: 6px;">
         {step['finding']}
         </div>
         <div class="citation-tag">
@@ -635,9 +694,9 @@ with tab_charts:
     fig.add_hline(y=30, line_dash="dash", line_color="#10B981", row=2, col=1)
 
     fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(15, 23, 42, 0.7)",
-        plot_bgcolor="rgba(15, 23, 42, 0.7)",
+        template="plotly_white",
+        paper_bgcolor="rgba(255, 255, 255, 0.6)",
+        plot_bgcolor="rgba(248, 250, 252, 0.8)",
         xaxis_rangeslider_visible=False,
         height=550,
         margin=dict(l=20, r=20, t=40, b=20),
@@ -663,7 +722,7 @@ with tab_charts:
 # ==========================================
 with tab_rag:
     st.subheader("📑 Semantic RAG Search over SEBI Filings & Disclosures")
-    st.markdown("<p style='color: #94A3B8; font-size: 0.9rem;'>Query the indexed regulatory corpus with TF-IDF and BM25 ranking for grounded attribution.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #64748B; font-size: 0.9rem;'>Query the indexed regulatory corpus with TF-IDF and BM25 ranking for grounded attribution.</p>", unsafe_allow_html=True)
 
     rag_col1, rag_col2 = st.columns([3, 1])
     with rag_col1:
@@ -682,16 +741,16 @@ with tab_rag:
         <div class="agent-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <div>
-        <span style="font-weight: 700; color: #38BDF8; font-size: 1rem;">{item.get('title')}</span>
+        <span style="font-weight: 700; color: #0284C7; font-size: 1rem;">{item.get('title')}</span>
         <span class="badge-neutral" style="margin-left: 8px; font-size: 0.75rem;">{item.get('doc_type')}</span>
-        <span style="color: #94A3B8; font-size: 0.8rem; margin-left: 8px;">Period: {item.get('period')}</span>
+        <span style="color: #64748B; font-size: 0.8rem; margin-left: 8px;">Period: {item.get('period')}</span>
         </div>
         <span class="badge-bullish" style="font-size: 0.8rem;">BM25 Match Score: {score:.3f}</span>
         </div>
-        <div style="font-weight: 600; color: #F8FAFC; margin-bottom: 4px; font-size: 0.9rem;">
+        <div style="font-weight: 600; color: #0F172A; margin-bottom: 4px; font-size: 0.9rem;">
         Section: {item.get('section')}
         </div>
-        <div style="color: #CBD5E1; font-size: 0.88rem; line-height: 1.5; margin-bottom: 10px;">
+        <div style="color: #475569; font-size: 0.88rem; line-height: 1.5; margin-bottom: 10px;">
         {item.get('content')}
         </div>
         <div class="citation-tag">
@@ -730,29 +789,29 @@ with tab_personalization:
             st.markdown(f"""
             <div class="agent-card" style="border: 2px solid {card_border};">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-weight: 700; color: #F8FAFC; font-size: 0.95rem;">{pobj.risk_category}</span>
+            <span style="font-weight: 700; color: #0F172A; font-size: 0.95rem;">{pobj.risk_category}</span>
             {f'<span class="badge-bullish" style="font-size: 0.7rem;">ACTIVE</span>' if is_active else ''}
             </div>
-            <div style="font-size: 0.8rem; color: #94A3B8; margin-bottom: 12px;">{pobj.name}</div>
-            <div style="background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
-            <div style="font-size: 0.75rem; color: #94A3B8;">Suitability Score</div>
-            <div style="font-size: 1.2rem; font-weight: 800; color: #38BDF8;">{p_res['suitability_score']}/100</div>
-            <div style="font-size: 0.75rem; color: #CBD5E1; margin-top: 2px;">{p_res['suitability_verdict']}</div>
+            <div style="font-size: 0.8rem; color: #64748B; margin-bottom: 12px;">{pobj.name}</div>
+            <div style="background: rgba(241, 245, 249, 0.8); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
+            <div style="font-size: 0.75rem; color: #64748B;">Suitability Score</div>
+            <div style="font-size: 1.2rem; font-weight: 800; color: #0284C7;">{p_res['suitability_score']}/100</div>
+            <div style="font-size: 0.75rem; color: #475569; margin-top: 2px;">{p_res['suitability_verdict']}</div>
             </div>
-            <div style="font-size: 0.82rem; color: #CBD5E1; margin-bottom: 6px;">
+            <div style="font-size: 0.82rem; color: #475569; margin-bottom: 6px;">
             <strong>Recommended Capital:</strong><br>
-            <span style="font-size: 1.1rem; color: #10B981; font-weight: 700;">₹{p_metrics['recommended_capital_inr']:,.2f}</span>
+            <span style="font-size: 1.1rem; color: #059669; font-weight: 700;">₹{p_metrics['recommended_capital_inr']:,.2f}</span>
             </div>
-            <div style="font-size: 0.82rem; color: #CBD5E1; margin-bottom: 6px;">
-            <strong>Recommended Shares:</strong> <code style="color: #38BDF8;">{p_metrics['recommended_shares_qty']} units</code>
+            <div style="font-size: 0.82rem; color: #475569; margin-bottom: 6px;">
+            <strong>Recommended Shares:</strong> <code style="color: #0284C7;">{p_metrics['recommended_shares_qty']} units</code>
             </div>
-            <div style="font-size: 0.82rem; color: #CBD5E1; margin-bottom: 6px;">
-            <strong>Stop-Loss Guard:</strong> <code style="color: #F43F5E;">₹{p_metrics['stop_loss_price_inr']:,.2f} (-{p_metrics['suggested_stop_loss_pct']}%)</code>
+            <div style="font-size: 0.82rem; color: #475569; margin-bottom: 6px;">
+            <strong>Stop-Loss Guard:</strong> <code style="color: #E11D48;">₹{p_metrics['stop_loss_price_inr']:,.2f} (-{p_metrics['suggested_stop_loss_pct']}%)</code>
             </div>
-            <div style="font-size: 0.82rem; color: #CBD5E1; margin-bottom: 6px;">
+            <div style="font-size: 0.82rem; color: #475569; margin-bottom: 6px;">
             <strong>Max Stock Cap:</strong> <code>{p_metrics['max_allowable_weight_pct']}%</code>
             </div>
-            <div style="border-top: 1px solid rgba(148, 163, 184, 0.15); padding-top: 8px; margin-top: 8px; font-size: 0.75rem; color: #FCD34D;">
+            <div style="border-top: 1px solid rgba(148, 163, 184, 0.15); padding-top: 8px; margin-top: 8px; font-size: 0.75rem; color: #B45309;">
             {p_res['behavioral_alerts'][0] if p_res['behavioral_alerts'] else 'Compliant with portfolio limits.'}
             </div>
             </div>
@@ -764,33 +823,33 @@ with tab_personalization:
 # ==========================================
 with tab_telemetry:
     st.subheader("⚡ Performance Telemetry & Quantitative Metrics")
-    st.markdown("<p style='color: #94A3B8; font-size: 0.9rem;'>Real-time metrics capturing multi-agent system latency, historical accuracy, and risk concentration.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #64748B; font-size: 0.9rem;'>Real-time metrics capturing multi-agent system latency, historical accuracy, and risk concentration.</p>", unsafe_allow_html=True)
 
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
         st.markdown("""
         <div class="agent-card">
-        <div style="font-size: 0.8rem; color: #94A3B8; font-weight: 700;">METRIC 1: 30-DAY FORWARD SIGNAL ACCURACY</div>
-        <div style="font-size: 2.2rem; font-weight: 800; color: #10B981; margin: 6px 0;">88.4%</div>
-        <div style="font-size: 0.8rem; color: #CBD5E1;">Evaluated against NSE historical forward return benchmarks.</div>
+        <div style="font-size: 0.8rem; color: #64748B; font-weight: 700;">METRIC 1: 30-DAY FORWARD SIGNAL ACCURACY</div>
+        <div style="font-size: 2.2rem; font-weight: 800; color: #059669; margin: 6px 0;">88.4%</div>
+        <div style="font-size: 0.8rem; color: #475569;">Evaluated against NSE historical forward return benchmarks.</div>
         </div>
         """, unsafe_allow_html=True)
 
     with col_m2:
         st.markdown(f"""
         <div class="agent-card">
-        <div style="font-size: 0.8rem; color: #94A3B8; font-weight: 700;">METRIC 2: MULTI-AGENT EXECUTION LATENCY</div>
-        <div style="font-size: 2.2rem; font-weight: 800; color: #38BDF8; margin: 6px 0;">{synth_res.get('execution_latency_ms', 0)} ms</div>
-        <div style="font-size: 0.8rem; color: #CBD5E1;">Sub-second execution across 4 parallel autonomous agents.</div>
+        <div style="font-size: 0.8rem; color: #64748B; font-weight: 700;">METRIC 2: MULTI-AGENT EXECUTION LATENCY</div>
+        <div style="font-size: 2.2rem; font-weight: 800; color: #0284C7; margin: 6px 0;">{synth_res.get('execution_latency_ms', 0)} ms</div>
+        <div style="font-size: 0.8rem; color: #475569;">Sub-second execution across 4 parallel autonomous agents.</div>
         </div>
         """, unsafe_allow_html=True)
 
     with col_m3:
         st.markdown(f"""
         <div class="agent-card">
-        <div style="font-size: 0.8rem; color: #94A3B8; font-weight: 700;">METRIC 3: PORTFOLIO RISK CONCENTRATION</div>
-        <div style="font-size: 2.2rem; font-weight: 800; color: #F59E0B; margin: 6px 0;">{risk_res.get('portfolio_metrics', {}).get('current_weight_pct', 0.0)}%</div>
-        <div style="font-size: 0.8rem; color: #CBD5E1;">Current stock weight against maximum allowed threshold.</div>
+        <div style="font-size: 0.8rem; color: #64748B; font-weight: 700;">METRIC 3: PORTFOLIO RISK CONCENTRATION</div>
+        <div style="font-size: 2.2rem; font-weight: 800; color: #D97706; margin: 6px 0;">{risk_res.get('portfolio_metrics', {}).get('current_weight_pct', 0.0)}%</div>
+        <div style="font-size: 0.8rem; color: #475569;">Current stock weight against maximum allowed threshold.</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -858,7 +917,7 @@ G --> H[Reconciled Actionable Verdict + Explainable Trace + Citations]
 
 # --- FOOTER ---
 st.markdown("""
-<div style="text-align: center; color: #64748B; font-size: 0.8rem; margin-top: 40px; border-top: 1px solid rgba(148, 163, 184, 0.1); padding-top: 16px;">
+<div style="text-align: center; color: #94A3B8; font-size: 0.8rem; margin-top: 40px; border-top: 1px solid rgba(148, 163, 184, 0.15); padding-top: 16px;">
 ⚡ <strong>FinAgent Intelligence Platform</strong> | Hackverse 2026 Sprint 1 Rapid Vibe Coding | Built with Streamlit & Plotly
 </div>
 """, unsafe_allow_html=True)
